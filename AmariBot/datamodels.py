@@ -12,22 +12,25 @@ class AmariUser:
         self.guild = guild
         self.id = data.get("id")
         self.username = data.get("username")
-        self.experience = data.get("exp")
+        self.experience = data.get("exp", 0)
         self.xp = self.experience
-        self.level = data.get("level")
-        self.weeklyxp = data.get("weeklyExp") if not len(data) == 3 else data.get("exp")
+        self.level = data.get("level", 0)
+        self.weeklyxp = data.get("weeklyExp", 0) if not len(data) == 3 else data.get("exp", 0)
             
     def __repr__(self) -> str:
         return f"<AmariUser id={self.id} username={self.username} xp={self.xp} level={self.level} weeklyXp={self.weeklyxp} guild={self.guild.__repr__()}>"
 
     async def getMemberObject(self):
-        return await self.get_or_fetch_member(self.bot, self.id)
+        return await self.get_or_fetch_member(self.id, self.guild)
     
     @staticmethod
-    async def get_or_fetch_member(bot, member_id:int):
-        if member := bot.get_member(member_id):
+    async def get_or_fetch_member(member_id:int, guild:discord.Guild):
+        if member := guild.get_member(member_id):
             return member
-        return await bot.fetch_member(member_id)
+        try:
+            return await guild.fetch_member(member_id)
+        except:
+            return None
             
 class AmariLeaderboard:
     """
@@ -48,17 +51,14 @@ class AmariLeaderboard:
         final = []
         if self.raw_leaderboard:
             for index, data in enumerate(self.raw_leaderboard, 1):
-                if index < count:
-                    final.append(AmariUser(data))
+                if index <= count:
+                    final.append(AmariUser(self.bot, data, self.guild))
                 else:
                     break
                 
             return final
         else:
             raise ValueError("The leaderboard is empty!")
-        
-    def __iter__(self):
-        return self.get_leaderboard(100)
     
 class AmariRewards:
     """
@@ -76,7 +76,7 @@ class AmariRewards:
         final = {}
         if self.raw_rewards:
             for i in self.raw_rewards:
-                role = self.guild.get_role(i.get("roleId"))
+                role = self.guild.get_role(int(i.get("roleID")))
                 level = i.get("level")
                 final[level] = role
                 
