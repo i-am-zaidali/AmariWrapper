@@ -24,19 +24,43 @@ class AmariClient():
 
     @staticmethod
     def check_status_code(response):
+        """Internal private method to check the status code to see the result is proper."""
         global status_codes
         if response.status in status_codes:
             raise status_codes[response.status](response.status)
 
     async def getGuildUser(self, user_id:int, guild_id:int):
+        """Get a AmariUser object by fetching it from the API
+
+        Args:
+            user_id (int): The user's id to get the object of.
+            guild_id (int): The guild id where the user resides.
+
+        Returns:
+            AmariUser: An instance of `AmariUser`
+        """
         data = await self.url_request(endpoint=f"guild/{guild_id}/member/{user_id}")
         return AmariUser(self.bot, data, self.bot.get_guild(int(guild_id)))
     
-    async def getGuildLeaderboard(self, guild_id:int, *, page:int=1, limit:int=10):
+    async def getGuildLeaderboard(self, guild_id:int, *, page:int=1, limit:int=50):
+        """Get a guild's leaderboard. Each page is limites to a 1000 entries limit if the guild has more than 1000 members
+
+        Args:
+            guild_id (int): The guild id to get the leaderboard of.
+            page (int, optional): The page number to get. Defaults to 1.
+            limit (int, optional): The limit of each page. Maximum is 1000. Defaults to 50.
+
+        Returns:
+            [type]: [description]
+        """
+        if limit > 1000:
+            raise ValueError("Limit can't be bigger than 1000.")
         data = await self.url_request(endpoint=f"guild/leaderboard/{guild_id}?page={page}&limit={limit}")
         return AmariLeaderboard(self.bot, data, self.bot.get_guild(int(guild_id)))
         
     async def getLeaderboardPosition(self, user_id:int, guild_id:int):
+        """
+        Get the leaderboard position of a user."""
         leaderboard = await self.getGuildLeaderboard(guild_id, limit=100)
         lb = leaderboard.get_leaderboard(100)
         
@@ -44,19 +68,55 @@ class AmariClient():
             if int(user.id) == int(user_id):
                 return index, user
             
-        # raise ValueError(f"{user_id} is not present in the leaderboard")    
+        raise ValueError(f"{user_id} is not present in the leaderboard")    
+    
+    async def getCompleteLeaderboard(self, guild_id):
+        """Get the complete leaderboard of a guild with all pages merged into one AmariLeaderboard object. 
+        
+        This can be a bit slow and get you ratelimited due to multiple API calls.
+
+        Args:
+            guild_id (int): the guild's id to get the leaderboard of.
+
+        Returns:
+            AmariLeaderboard: AmariLeaderboard instance.
+        """
+        main = AmariLeaderboard(self.bot, await self.url_request(endpoint=f"guild/leaderboard/{guild_id}?page=1&limit=1000"))
+        if main.count != main.total_count:
+            remaining = int(main.total_count/1000)
+            for i in range(remaining):
+                new = AmariLeaderboard(self.bot, await self.url_request(endpoint=f"guild/leaderboard/{guild_id}?page={i+2}&limit=1000"))
+                main = main + new
+            return main
+        return main
+    
     async def getWeeklyLeaderboard(self, guild_id:int, *, page:int=1, limit:int=10):
+        """Get a guild's weekly xp leaderboard.
+
+        Args:
+            guild_id (int): The guild's id.
+            page (int, optional): The page number. Defaults to 1.
+            limit (int, optional): Entry limit per page. Defaults to 10.
+
+        Returns:
+            AmariLeaderboard: Amarileaderboard instance.
+        """
         data = await self.url_request(endpoint=f"guild/weekly/{guild_id}?page={page}&limit={limit}")
         return AmariLeaderboard(self.bot, data, self.bot.get_guild(int(guild_id)))
     
     async def getGuildRewards(self, guild_id:int, *, page:int=1, limit:int=10):
+        """Get a guild's level role rewards.
+
+        Args:
+            guild_id (int): The guild's id
+            page (int, optional): The page number. Defaults to 1.
+            limit (int, optional): Entry limit per page. Defaults to 10.
+
+        Returns:
+            AmariRewards: AmariRewards instance.
+        """
         data = await self.url_request(endpoint=f"guild/rewards/{guild_id}?page={page}&limit={limit}")
         return AmariRewards(data, self.bot.get_guild(int(guild_id)))
-
-    async def get_or_fetch_member(self, member_id:int):
-        if member := self.bot.get_member(member_id):
-            return member
-        return await self.bot.fetch_member(member_id)
         
     async def url_request(self, *, endpoint=None):
         async with aiohttp.ClientSession(headers={"Authorization": self.auth_key}) as session:

@@ -21,6 +21,11 @@ class AmariUser:
         return f"<AmariUser id={self.id} username={self.username} xp={self.xp} level={self.level} weeklyXp={self.weeklyxp} guild={self.guild.__repr__()}>"
 
     async def getMemberObject(self):
+        """Get a proper discord.Member object from your Amariuser instance.
+
+        Returns:
+            discord.Member : The proper discord.Member object.
+        """
         return await self.get_or_fetch_member(self.id, self.guild)
     
     @staticmethod
@@ -39,15 +44,33 @@ class AmariLeaderboard:
     def __init__(self, bot, data={}, guild=None):
         if data:
             self.raw_leaderboard = data.get("data")
-            self.total_count = data.get("top_count")
+            self.total_count = data.get("total_count")
             self.count = data.get("count")
             self.guild = guild
             self.bot = bot
             
     def __repr__(self) -> str:
         return f"<AmariLeaderboard total_count={self.total_count} count={self.count} guild={self.guild.__repr__()}>"
+    
+    def __add__(self, other):
+        """
+        Dunder method to add two instances of Amarileaderboard.
+        
+        Returns:
+            AmariLeaderboard: an newly constructed instance of AmariLeaderboard after adding the data of two given instances."""
+        one = self.raw_leaderboard
+        two = other.raw_leaderboard
+        data = {
+            "data": one+two,
+            "total_count": other.total_count,
+            "count": (self.count + other.count) if not (self.count + other.count) > other.total_count else other.total_count
+        }
+        return AmariLeaderboard(self.bot, data, self.guild)
             
     def get_leaderboard(self, count:int=10):
+        """
+        Method to get a properly formatted leaderboard from the raw one.
+        This converts each entry to a `AmariUser` instance."""
         final = []
         if self.raw_leaderboard:
             for index, data in enumerate(self.raw_leaderboard, 1):
@@ -73,6 +96,9 @@ class AmariRewards:
         return f"<AmariRewards count={self.count} guild={self.guild.__repr__()}>"
             
     async def rewards(self):
+        """Get properly formatted guild rewards in a dictionary.
+        
+        The key is the level number and the value is a discord.Role object obtained from the id provided by the API."""
         final = {}
         if self.raw_rewards:
             for i in self.raw_rewards:
