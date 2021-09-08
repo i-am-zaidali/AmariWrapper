@@ -1,5 +1,7 @@
 import aiohttp
-from discord import guild
+from cachetools import cachedmethod, TTLCache
+from cachetools.keys import hashkey
+import functools
 import requests
 from .Exceptions import *
 from .datamodels import *
@@ -11,12 +13,12 @@ status_codes = {
 }
 
 class AmariClient():
-    def __init__(self, bot, auth_key:str, enable_cache:bool):
+    def __init__(self, bot, auth_key:str):
         self.bot = bot
         self.url = "https://amaribot.com/api/v1/"
         self.auth_key = auth_key
-        self.cache_enabled = enable_cache
         self.status_codes = []
+        self.cache = TTLCache(100, 180)
         
         response = requests.get(self.url, headers={"Authorization": self.auth_key})
         if response.json().get("error") and response.json().get("error").lower() == "unauthorized":
@@ -29,6 +31,7 @@ class AmariClient():
         if response.status in status_codes:
             raise status_codes[response.status](response.status)
 
+    @cachedmethod(lambda self: self.cache, functools.partial(hashkey, "GuildUser"))
     async def getGuildUser(self, user_id:int, guild_id:int):
         """Get a AmariUser object by fetching it from the API
 
@@ -42,6 +45,7 @@ class AmariClient():
         data = await self.url_request(endpoint=f"guild/{guild_id}/member/{user_id}")
         return AmariUser(self.bot, data, self.bot.get_guild(int(guild_id)))
     
+    @cachedmethod(lambda self: self.cache, functools.partial(hashkey, "GuildLeaderboard"))
     async def getGuildLeaderboard(self, guild_id:int, *, page:int=1, limit:int=50):
         """Get a guild's leaderboard. Each page is limites to a 1000 entries limit if the guild has more than 1000 members
 
@@ -70,6 +74,7 @@ class AmariClient():
             
         raise ValueError(f"{user_id} is not present in the leaderboard")    
     
+    @cachedmethod(lambda self: self.cache, functools.partial(hashkey, "GuildLeaderboard"))
     async def getCompleteLeaderboard(self, guild_id):
         """Get the complete leaderboard of a guild with all pages merged into one AmariLeaderboard object. 
         
@@ -90,6 +95,7 @@ class AmariClient():
             return main
         return main
     
+    @cachedmethod(lambda self: self.cache, functools.partial(hashkey, "WeeklyLeaderboard"))
     async def getWeeklyLeaderboard(self, guild_id:int, *, page:int=1, limit:int=10):
         """Get a guild's weekly xp leaderboard.
 
@@ -104,6 +110,7 @@ class AmariClient():
         data = await self.url_request(endpoint=f"guild/weekly/{guild_id}?page={page}&limit={limit}")
         return AmariLeaderboard(self.bot, data, self.bot.get_guild(int(guild_id)))
     
+    @cachedmethod(lambda self: self.cache, functools.partial(hashkey, "GuildRewards"))
     async def getGuildRewards(self, guild_id:int, *, page:int=1, limit:int=10):
         """Get a guild's level role rewards.
 
