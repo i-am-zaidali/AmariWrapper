@@ -7,5 +7,6 @@ setup(
     url='git@github.com:i-am-zaidali/AmariWrapper.git',
     author='Zaid Ali',
     author_email='zaidlastid20@gmail.com',
+    packages=["amari"],
     install_requires=['aiohttp', 'cachetools', 'requests']
 )
