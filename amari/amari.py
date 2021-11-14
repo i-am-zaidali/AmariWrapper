@@ -68,7 +68,7 @@ class AmariClient:
             limit (int, optional): The limit of each page. Maximum is 1000. Defaults to 50.
 
         Returns:
-            [type]: [description]
+            AmariLeaderboard: An instance of Amarileaderboard
         """
         data = await self.url_request(endpoint=f"guild/leaderboard/{guild_id}?page={page}&limit={limit}")
         return AmariLeaderboard(self.bot, data, self.bot.get_guild(int(guild_id)))
