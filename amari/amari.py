@@ -20,8 +20,8 @@ class AmariClient:
         self.status_codes = []
         self.session = aiohttp.ClientSession(headers={"Authorization": auth_key})
         
-    def __del__(self):
-        asyncio.get_event_loop().create_task(self.session.close())
+    async def close(self):
+        await self.session.close()
 
     @staticmethod
     def check_status_code(response):
