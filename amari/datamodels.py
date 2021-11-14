@@ -1,21 +1,25 @@
 import discord
 
+from dataclasses import dataclass
+from redbot.core.bot import Red
+
 class AmariUser:
     """
     A class that represents a AmariBot user with all its attributes.
     
     Some attributes might return None based on the type of request the instance was created from."""
+    
     def __init__(self, bot, data={}, guild:discord.Guild=None):
         if data.get("error") and data.get("error").lower() == "user not found":
             raise NameError("The user you requested wasn't found.")
-        self.bot = bot
-        self.guild = guild
-        self.id = data.get("id")
-        self.username = data.get("username")
-        self.experience = data.get("exp", 0)
+        self.bot : Red = bot
+        self.guild : discord.Guild = guild
+        self.id : int = data.get("id")
+        self.username : str = data.get("username")
+        self.experience : int = data.get("exp", 0)
         self.xp = self.experience
-        self.level = data.get("level", 0)
-        self.weeklyxp = data.get("weeklyExp", 0) if not len(data) == 3 else data.get("exp", 0)
+        self.level : int = data.get("level", 0)
+        self.weeklyxp :int = data.get("weeklyExp", 0) if not len(data) == 3 else data.get("exp", 0)
             
     def __repr__(self) -> str:
         return f"<AmariUser id={self.id} username={self.username} xp={self.xp} level={self.level} weeklyXp={self.weeklyxp} guild={self.guild.__repr__()}>"
@@ -38,9 +42,7 @@ class AmariUser:
             return None
             
 class AmariLeaderboard:
-    """
-    A class that represents an AmariBot guild leaderboard.
-    """
+
     def __init__(self, bot, data={}, guild=None):
         if data:
             self.raw_leaderboard = data.get("data")
@@ -52,21 +54,6 @@ class AmariLeaderboard:
     def __repr__(self) -> str:
         return f"<AmariLeaderboard total_count={self.total_count} count={self.count} guild={self.guild.__repr__()}>"
     
-    def __add__(self, other):
-        """
-        Dunder method to add two instances of Amarileaderboard.
-        
-        Returns:
-            AmariLeaderboard: an newly constructed instance of AmariLeaderboard after adding the data of two given instances."""
-        one = self.raw_leaderboard
-        two = other.raw_leaderboard
-        data = {
-            "data": one+two,
-            "total_count": other.total_count,
-            "count": (self.count + other.count) if not (self.count + other.count) > other.total_count else other.total_count
-        }
-        return AmariLeaderboard(self.bot, data, self.guild)
-            
     def get_leaderboard(self, count:int=10):
         """
         Method to get a properly formatted leaderboard from the raw one.

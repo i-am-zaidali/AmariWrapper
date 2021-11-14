@@ -1,8 +1,7 @@
 import aiohttp
-from cachetools import cachedmethod, TTLCache
-from cachetools.keys import hashkey
-import functools
-import requests
+import asyncio
+
+from cache import AsyncTTL
 from .Exceptions import *
 from .datamodels import *
 
@@ -12,17 +11,17 @@ status_codes = {
     500: APIError,
 }
 
-class AmariClient():
+class AmariClient:
+    
+    URL = "https://amaribot.com/api/v1/"
     def __init__(self, bot, auth_key:str):
         self.bot = bot
-        self.url = "https://amaribot.com/api/v1/"
         self.auth_key = auth_key
         self.status_codes = []
-        self.cache = TTLCache(100, 180)
+        self.session = aiohttp.ClientSession(headers={"Authorization": auth_key})
         
-        response = requests.get(self.url, headers={"Authorization": self.auth_key})
-        if response.json().get("error") and response.json().get("error").lower() == "unauthorized":
-            raise RuntimeError("Given Auth_key for the AmariAPI was invalid. Please head over to your Amari developer dashboard and get a proper authorization token.")
+    def __del__(self):
+        asyncio.get_event_loop().create_task(self.session.close())
 
     @staticmethod
     def check_status_code(response):
@@ -31,7 +30,7 @@ class AmariClient():
         if response.status in status_codes:
             raise status_codes[response.status](response.status)
 
-    @cachedmethod(lambda self: self.cache, functools.partial(hashkey, "GuildUser"))
+    @AsyncTTL(time_to_live=60, maxsize=60)
     async def getGuildUser(self, user_id:int, guild_id:int):
         """Get a AmariUser object by fetching it from the API
 
@@ -45,9 +44,23 @@ class AmariClient():
         data = await self.url_request(endpoint=f"guild/{guild_id}/member/{user_id}")
         return AmariUser(self.bot, data, self.bot.get_guild(int(guild_id)))
     
-    @cachedmethod(lambda self: self.cache, functools.partial(hashkey, "GuildLeaderboard"))
+    @AsyncTTL(time_to_live=60, maxsize=60)
+    async def getGuildUsers(self, guild_id:int, *members):
+        """Get a list of AmariUser objects by fetching it from the API
+
+        Args:
+            guild_id (int): The guild id to get the users of.
+
+        Returns:
+            List[AmariUser]: A list of AmariUser objects. Sorted by their level and xp
+        """
+        data = await self.url_request(endpoint=f"guild/{guild_id}/members", method="POST", json={"members": members})
+        guild = self.bot.get_guild(int(guild_id))
+        return [AmariUser(self.bot, user, guild) for user in data["members"]]
+    
+    @AsyncTTL(time_to_live=60, maxsize=60)
     async def getGuildLeaderboard(self, guild_id:int, *, page:int=1, limit:int=50):
-        """Get a guild's leaderboard. Each page is limites to a 1000 entries limit if the guild has more than 1000 members
+        """Get a guild's leaderboard. Each page is limited to a 1000 entries limit if the guild has more than 1000 members
 
         Args:
             guild_id (int): The guild id to get the leaderboard of.
@@ -57,8 +70,6 @@ class AmariClient():
         Returns:
             [type]: [description]
         """
-        if limit > 1000:
-            raise ValueError("Limit can't be bigger than 1000.")
         data = await self.url_request(endpoint=f"guild/leaderboard/{guild_id}?page={page}&limit={limit}")
         return AmariLeaderboard(self.bot, data, self.bot.get_guild(int(guild_id)))
         
@@ -74,7 +85,7 @@ class AmariClient():
             
         raise ValueError(f"{user_id} is not present in the leaderboard")    
     
-    @cachedmethod(lambda self: self.cache, functools.partial(hashkey, "GuildLeaderboard"))
+    @AsyncTTL(time_to_live=60, maxsize=60)
     async def getCompleteLeaderboard(self, guild_id):
         """Get the complete leaderboard of a guild with all pages merged into one AmariLeaderboard object. 
         
@@ -86,16 +97,14 @@ class AmariClient():
         Returns:
             AmariLeaderboard: AmariLeaderboard instance.
         """
-        main = AmariLeaderboard(self.bot, await self.url_request(endpoint=f"guild/leaderboard/{guild_id}?page=1&limit=1000"))
-        if main.count != main.total_count:
-            remaining = int(main.total_count/1000)
-            for i in range(remaining):
-                new = AmariLeaderboard(self.bot, await self.url_request(endpoint=f"guild/leaderboard/{guild_id}?page={i+2}&limit=1000"))
-                main = main + new
-            return main
-        return main
+        guild = self.bot.get_guild(int(guild_id))
+        org = await self.getGuildUsers(guild_id, *[str(member.id) for member in guild.members])
+        org.sort(key=lambda x: (x.level, x.xp), reverse=True)
+        return org
+        # main = AmariLeaderboard(self.bot, await self.url_request(endpoint=f"guild/raw/leaderboard/{guild_id}"))
+        # return main
     
-    @cachedmethod(lambda self: self.cache, functools.partial(hashkey, "WeeklyLeaderboard"))
+    @AsyncTTL(time_to_live=60, maxsize=60)
     async def getWeeklyLeaderboard(self, guild_id:int, *, page:int=1, limit:int=10):
         """Get a guild's weekly xp leaderboard.
 
@@ -110,7 +119,7 @@ class AmariClient():
         data = await self.url_request(endpoint=f"guild/weekly/{guild_id}?page={page}&limit={limit}")
         return AmariLeaderboard(self.bot, data, self.bot.get_guild(int(guild_id)))
     
-    @cachedmethod(lambda self: self.cache, functools.partial(hashkey, "GuildRewards"))
+    @AsyncTTL(time_to_live=60, maxsize=60)
     async def getGuildRewards(self, guild_id:int, *, page:int=1, limit:int=10):
         """Get a guild's level role rewards.
 
@@ -125,8 +134,8 @@ class AmariClient():
         data = await self.url_request(endpoint=f"guild/rewards/{guild_id}?page={page}&limit={limit}")
         return AmariRewards(data, self.bot.get_guild(int(guild_id)))
         
-    async def url_request(self, *, endpoint=None):
-        async with aiohttp.ClientSession(headers={"Authorization": self.auth_key}) as session:
-            async with session.get(self.url+endpoint if endpoint else "") as response:
+    async def url_request(self, *, endpoint="", json=None, method="GET", headers={}):
+        async with self.session as session:
+            async with session.request(method=method, url=self.URL + endpoint, json=json, headers=headers) as response:
                 self.check_status_code(response)
                 return await response.json()
