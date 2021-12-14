@@ -1,7 +1,4 @@
 import aiohttp
-import asyncio
-
-from cache import AsyncTTL
 from .Exceptions import *
 from .datamodels import *
 
@@ -30,7 +27,6 @@ class AmariClient:
         if response.status in status_codes:
             raise status_codes[response.status](response.status)
 
-    @AsyncTTL(time_to_live=60, maxsize=60)
     async def getGuildUser(self, user_id:int, guild_id:int):
         """Get a AmariUser object by fetching it from the API
 
@@ -44,7 +40,6 @@ class AmariClient:
         data = await self.url_request(endpoint=f"guild/{guild_id}/member/{user_id}")
         return AmariUser(self.bot, data, self.bot.get_guild(int(guild_id)))
     
-    @AsyncTTL(time_to_live=60, maxsize=60)
     async def getGuildUsers(self, guild_id:int, *members):
         """Get a list of AmariUser objects by fetching it from the API
 
@@ -58,7 +53,6 @@ class AmariClient:
         guild = self.bot.get_guild(int(guild_id))
         return [AmariUser(self.bot, user, guild) for user in data["members"]]
     
-    @AsyncTTL(time_to_live=60, maxsize=60)
     async def getGuildLeaderboard(self, guild_id:int, *, page:int=1, limit:int=50):
         """Get a guild's leaderboard. Each page is limited to a 1000 entries limit if the guild has more than 1000 members
 
@@ -85,7 +79,6 @@ class AmariClient:
             
         raise ValueError(f"{user_id} is not present in the leaderboard")    
     
-    @AsyncTTL(time_to_live=60, maxsize=60)
     async def getCompleteLeaderboard(self, guild_id):
         """Get the complete leaderboard of a guild with all pages merged into one AmariLeaderboard object. 
         
@@ -104,7 +97,6 @@ class AmariClient:
         # main = AmariLeaderboard(self.bot, await self.url_request(endpoint=f"guild/raw/leaderboard/{guild_id}"))
         # return main
     
-    @AsyncTTL(time_to_live=60, maxsize=60)
     async def getWeeklyLeaderboard(self, guild_id:int, *, page:int=1, limit:int=10):
         """Get a guild's weekly xp leaderboard.
 
@@ -119,7 +111,6 @@ class AmariClient:
         data = await self.url_request(endpoint=f"guild/weekly/{guild_id}?page={page}&limit={limit}")
         return AmariLeaderboard(self.bot, data, self.bot.get_guild(int(guild_id)))
     
-    @AsyncTTL(time_to_live=60, maxsize=60)
     async def getGuildRewards(self, guild_id:int, *, page:int=1, limit:int=10):
         """Get a guild's level role rewards.
 
