@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='amari',
-    version='1.3.0',    
+    version='1.5.0',    
     description='An asynchronous AmariBot API wrapper.',
     url='git@github.com:i-am-zaidali/AmariWrapper.git',
     author='Zaid Ali',
