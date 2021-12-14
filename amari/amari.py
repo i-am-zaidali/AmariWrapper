@@ -126,6 +126,6 @@ class AmariClient:
         return AmariRewards(data, self.bot.get_guild(int(guild_id)))
         
     async def url_request(self, *, endpoint="", json=None, method="GET", headers={}):
-        response = await self.session.request(method=method, url=self.URL + endpoint, json=json, headers=headers) as response:
+        response = await self.session.request(method=method, url=self.URL + endpoint, json=json, headers=headers)
         self.check_status_code(response)
         return await response.json()
